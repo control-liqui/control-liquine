@@ -18,7 +18,7 @@ const firebaseConfig = {
   messagingSenderId: "588535543611",
   appId: "1:588535543611:web:743cd717daf9f5d593291e",
   measurementId: "G-JNEYDNWTPM"
-};
+}; 
 
 // ---- Configuración institucional (editar según recinto) ----
 const CONFIG = {
