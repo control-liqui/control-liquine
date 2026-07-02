@@ -10,7 +10,30 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="app-container">
+  <!-- ========== LOGIN ========== -->
+  <div class="login-screen" id="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+        <h1>Control Stock Liquiñe</h1>
+        <p>Sistema de Existencias - Bienestar Social</p>
+      </div>
+      <form id="login-form" autocomplete="off">
+        <div class="form-group">
+          <label for="login-username">Nombre de usuario</label>
+          <input type="text" id="login-username" required autocomplete="username" placeholder="Ej: jperez">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Contraseña</label>
+          <input type="password" id="login-password" required autocomplete="current-password" placeholder="Contraseña">
+        </div>
+        <p class="login-error" id="login-error"></p>
+        <button type="submit" class="btn btn-primary login-btn" id="login-btn">Ingresar</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="app-container" id="app-container" style="display:none">
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -24,17 +47,13 @@
         </div>
       </div>
 
-      <div class="role-box">
-        <label for="role-select">Usuario / Rol</label>
-        <select id="role-select">
-          <option value="administrador">Administrador</option>
-          <option value="bodeguero">Bodeguero</option>
-          <option value="jefe_finanzas">Jefe de Finanzas</option>
-          <option value="subjefe">Subjefe</option>
-          <option value="encargado">Encargado (Cocina/Bar/Otro)</option>
-          <option value="contador">Contador</option>
-          <option value="auditor">Auditor</option>
-        </select>
+      <div class="role-box" id="session-box">
+        <label>Sesión</label>
+        <div class="session-info">
+          <span class="session-name" id="session-nombre">-</span>
+          <span class="session-rol" id="session-rol">-</span>
+        </div>
+        <button type="button" class="btn-logout" id="btn-logout">Cerrar sesión</button>
       </div>
 
       <nav class="sidebar-nav">
@@ -73,6 +92,10 @@
         <button class="nav-item" data-view="secciones">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
           <span>Secciones</span>
+        </button>
+        <button class="nav-item" data-view="usuarios">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <span>Usuarios</span>
         </button>
         <button class="nav-item" data-view="historial">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>
@@ -533,6 +556,82 @@
         </div>
       </section>
 
+      <!-- ========== USUARIOS ========== -->
+      <section class="view" id="usuarios-view">
+        <div class="view-header">
+          <h1>Usuarios</h1>
+          <p class="view-subtitle">Cuentas de acceso al sistema</p>
+        </div>
+        <div class="card form-card">
+          <h3>Nuevo usuario</h3>
+          <form id="usuario-form" autocomplete="off">
+            <div class="form-grid">
+              <div class="form-group"><label for="usr-nombre">Nombre *</label><input type="text" id="usr-nombre" required class="uppercase-input" placeholder="Nombre completo" autocomplete="off"></div>
+              <div class="form-group"><label for="usr-username">Nombre de usuario *</label><input type="text" id="usr-username" required placeholder="Ej: jperez" minlength="3" pattern="[a-zA-Z0-9._-]+" title="Solo letras, números, punto, guion y guion bajo" autocomplete="off"></div>
+              <div class="form-group"><label for="usr-password">Contraseña *</label><input type="password" id="usr-password" required minlength="6" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+              <div class="form-group"><label for="usr-rol">Rol *</label>
+                <select id="usr-rol" required>
+                  <option value="">Seleccione rol...</option>
+                  <option value="administrador">Administrador</option>
+                  <option value="bodeguero">Bodeguero</option>
+                  <option value="jefe_finanzas">Jefe de Finanzas</option>
+                  <option value="subjefe">Subjefe</option>
+                  <option value="encargado">Encargado (Cocina/Bar/Otro)</option>
+                  <option value="contador">Contador</option>
+                  <option value="auditor">Auditor</option>
+                </select>
+              </div>
+              <div class="form-group full">
+                <label>Módulos extra (adicionales a los del rol)</label>
+                <div class="modulos-grid" id="usr-modulos"></div>
+              </div>
+            </div>
+            <p class="field-hint">El rol queda fijo al crear el usuario y no puede modificarse después. Los módulos extra sí pueden editarse.</p>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('usuario-form').reset()">Limpiar</button>
+              <button type="submit" class="btn btn-primary">Crear Usuario</button>
+            </div>
+          </form>
+        </div>
+        <div class="card form-card">
+          <h3>Módulos por rol</h3>
+          <p class="field-hint">Define qué módulos ve cada rol. Se aplica a todos los usuarios con ese rol (más sus módulos extra).</p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="perm-rol">Rol</label>
+              <select id="perm-rol">
+                <option value="administrador">Administrador</option>
+                <option value="bodeguero">Bodeguero</option>
+                <option value="jefe_finanzas">Jefe de Finanzas</option>
+                <option value="subjefe">Subjefe</option>
+                <option value="encargado">Encargado (Cocina/Bar/Otro)</option>
+                <option value="contador">Contador</option>
+                <option value="auditor">Auditor</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Módulos del rol</label>
+              <div class="modulos-grid" id="perm-modulos"></div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="perm-restaurar">Restaurar por defecto</button>
+            <button type="button" class="btn btn-primary" id="perm-guardar">Guardar módulos del rol</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Listado de usuarios</h3><span class="result-count" id="usr-count">0 usuarios</span></div>
+          <div class="card-content">
+            <div class="table-container">
+              <table class="data-table">
+                <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Módulos extra</th><th>Estado</th><th>Creado</th><th>Acciones</th></tr></thead>
+                <tbody id="usuarios-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ========== HISTORIAL / ACTAS ========== -->
       <section class="view" id="historial-view">
         <div class="view-header">
@@ -704,6 +803,26 @@
           <div class="form-group"><label for="ec-nombre">Nombre</label><input type="text" id="ec-nombre" required></div>
         </div>
         <div class="modal-actions"><button type="button" class="btn btn-secondary" data-close="modal-cuenta">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-usuario">
+    <div class="modal">
+      <div class="modal-header"><h3>Editar Usuario</h3><button class="modal-close" data-close="modal-usuario">&times;</button></div>
+      <form id="edit-usuario-form" autocomplete="off">
+        <input type="hidden" id="eu-id">
+        <div class="form-grid">
+          <div class="form-group"><label for="eu-nombre">Nombre *</label><input type="text" id="eu-nombre" required class="uppercase-input"></div>
+          <div class="form-group"><label for="eu-username">Nombre de usuario *</label><input type="text" id="eu-username" required minlength="3" pattern="[a-zA-Z0-9._-]+" title="Solo letras, números, punto, guion y guion bajo"></div>
+          <div class="form-group"><label for="eu-password">Nueva contraseña</label><input type="password" id="eu-password" minlength="6" placeholder="Dejar vacío para no cambiar" autocomplete="new-password"></div>
+          <div class="form-group"><label for="eu-rol">Rol (no editable)</label><input type="text" id="eu-rol" readonly></div>
+          <div class="form-group full">
+            <label>Módulos extra (adicionales a los del rol)</label>
+            <div class="modulos-grid" id="eu-modulos"></div>
+          </div>
+        </div>
+        <div class="modal-actions"><button type="button" class="btn btn-secondary" data-close="modal-usuario">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div>
       </form>
     </div>
   </div>

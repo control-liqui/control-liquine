@@ -34,7 +34,7 @@ const UNIDADES = ['UNIDAD','CAJA','PAQUETE','KILOGRAMO (KG)','GRAMO (GR)','LITRO
 
 // ---- Estado global ----
 let app, db;
-let articulos = [], proveedores = [], cuentas = [], firmantes = [], secciones = [];
+let articulos = [], proveedores = [], cuentas = [], firmantes = [], secciones = [], usuarios = [];
 let facturas = [], salidas = [], movimientos = [];
 let recItems = [];
 let salItems = [];
@@ -126,7 +126,7 @@ const cuentaNombre = (cod) => (cuentas.find(c => String(c.codigo) === String(cod
 //  Navegación + Roles
 // ============================================================
 const ROLES_VIEWS = {
-  administrador: ['dashboard','recepcion','salidas','inventario','articulos','proveedores','cuentas','firmantes','secciones','historial','reportes','buscar'],
+  administrador: ['dashboard','recepcion','salidas','inventario','articulos','proveedores','cuentas','firmantes','secciones','usuarios','historial','reportes','buscar'],
   bodeguero:     ['dashboard','recepcion','salidas','inventario','articulos','proveedores','historial','buscar'],
   jefe_finanzas: ['dashboard','inventario','historial','reportes','buscar'],
   subjefe:       ['dashboard','inventario','historial','reportes','buscar'],
@@ -135,8 +135,39 @@ const ROLES_VIEWS = {
   auditor:       ['dashboard','inventario','historial','reportes','buscar']
 };
 
-function aplicarRol(rol) {
-  const permitidas = ROLES_VIEWS[rol] || ROLES_VIEWS.administrador;
+// Catálogo de módulos del sistema (id de vista -> etiqueta)
+const MODULOS = [
+  { id: 'dashboard',  label: 'Dashboard' },
+  { id: 'recepcion',  label: 'Recepción' },
+  { id: 'salidas',    label: 'Salidas' },
+  { id: 'inventario', label: 'Inventario' },
+  { id: 'articulos',  label: 'Artículos' },
+  { id: 'proveedores',label: 'Proveedores' },
+  { id: 'cuentas',    label: 'Cuentas contables' },
+  { id: 'firmantes',  label: 'Firmantes' },
+  { id: 'secciones',  label: 'Secciones' },
+  { id: 'usuarios',   label: 'Usuarios' },
+  { id: 'historial',  label: 'Historial / Actas' },
+  { id: 'reportes',   label: 'Reportes' },
+  { id: 'buscar',     label: 'Buscar' }
+];
+
+// Config editable por rol (colección roles_config). ROLES_VIEWS son los valores por defecto.
+let rolesConfig = {};
+
+function vistasDeRol(rol) {
+  const cfg = rolesConfig[rol];
+  return (cfg && Array.isArray(cfg.vistas) && cfg.vistas.length) ? cfg.vistas : (ROLES_VIEWS[rol] || []);
+}
+
+// Vistas efectivas = módulos del rol + módulos extra del usuario. Dashboard siempre incluido.
+function vistasEfectivas(rol, extras) {
+  const set = new Set(['dashboard', ...vistasDeRol(rol), ...(extras || [])]);
+  return [...set];
+}
+
+function aplicarRol(rol, extras) {
+  const permitidas = vistasEfectivas(rol, extras);
   document.querySelectorAll('.nav-item').forEach(n => {
     n.style.display = permitidas.includes(n.dataset.view) ? '' : 'none';
   });
@@ -159,14 +190,69 @@ document.getElementById('menu-toggle').addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('open');
 });
 
-const roleSelect = document.getElementById('role-select');
-const rolGuardado = localStorage.getItem('rol_actual') || 'administrador';
-roleSelect.value = rolGuardado;
-aplicarRol(rolGuardado);
-roleSelect.addEventListener('change', () => {
-  localStorage.setItem('rol_actual', roleSelect.value);
-  aplicarRol(roleSelect.value);
+// ============================================================
+//  Sesión / Login
+// ============================================================
+const SESSION_KEY = 'sesion_usuario';
+let sesionActual = null;
+
+function leerSesion() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; }
+}
+
+function mostrarApp(sesion) {
+  sesionActual = sesion;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-container').style.display = '';
+  document.getElementById('session-nombre').textContent = sesion.nombre || sesion.username;
+  document.getElementById('session-rol').textContent = (sesion.rol || '').replace('_', ' ');
+  aplicarRol(sesion.rol, sesion.modulos_extra || []);
+}
+
+function mostrarLogin() {
+  sesionActual = null;
+  localStorage.removeItem(SESSION_KEY);
+  document.getElementById('app-container').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-form').reset();
+  document.getElementById('login-error').textContent = '';
+}
+
+document.getElementById('btn-logout').addEventListener('click', mostrarLogin);
+
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  const username = document.getElementById('login-username').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  errEl.textContent = '';
+  btn.disabled = true; btn.textContent = 'Verificando...';
+  try {
+    const sesion = await loginConFirestore(username, password);
+    if (!sesion) { errEl.textContent = 'Usuario o contraseña incorrectos, o usuario inactivo.'; return; }
+    localStorage.setItem(SESSION_KEY, JSON.stringify(sesion));
+    mostrarApp(sesion);
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = 'Error de conexión. Intente nuevamente.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Ingresar';
+  }
 });
+
+// Consulta directa a Firestore (no depende de que el snapshot ya haya cargado)
+async function loginConFirestore(username, password) {
+  if (!db || !username || !password) return null;
+  const snap = await getDocs(query(collection(db, 'usuarios'), where('username', '==', username)));
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  const u = { id: d.id, ...d.data() };
+  if (u.activo === false) return null;
+  const hash = await hashPassword(password);
+  if (hash !== u.password_hash) return null;
+  return { id: u.id, nombre: u.nombre, username: u.username, rol: u.rol, modulos_extra: u.modulos_extra || [] };
+}
 
 document.querySelectorAll('[data-close]').forEach(b => {
   b.addEventListener('click', () => document.getElementById(b.dataset.close).classList.remove('active'));
@@ -248,6 +334,23 @@ function setupListeners() {
     secciones.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
     llenarSeccionesSelect(); updateSeccionesTable();
   }, e => console.error(e));
+
+  onSnapshot(collection(db, 'usuarios'), snap => {
+    usuarios = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    usuarios.sort((a, b) => (a.username || '').localeCompare(b.username || ''));
+    updateUsuariosTable();
+  });
+
+  onSnapshot(collection(db, 'roles_config'), snap => {
+    rolesConfig = {};
+    snap.docs.forEach(d => { rolesConfig[d.id] = d.data(); });
+    renderPermModulos();
+    // Si cambia la config del rol en sesión, re-aplicar permisos y refrescar extras desde Firestore local
+    if (sesionActual) {
+      const u = usuarios.find(x => x.id === sesionActual.id);
+      aplicarRol(sesionActual.rol, (u && u.modulos_extra) || sesionActual.modulos_extra || []);
+    }
+  });
 
   onSnapshot(query(collection(db, 'facturas'), orderBy('fecha_creacion', 'desc')), snap => {
     facturas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1039,6 +1142,183 @@ async function delFirmante(id) {
 }
 
 // ============================================================
+//  USUARIOS (CRUD) - el rol se asigna al crear y NO es editable
+// ============================================================
+const ROLES_LABEL = {
+  administrador: 'Administrador', bodeguero: 'Bodeguero', jefe_finanzas: 'Jefe de Finanzas',
+  subjefe: 'Subjefe', encargado: 'Encargado', contador: 'Contador', auditor: 'Auditor'
+};
+
+// Hash SHA-256 (Web Crypto). Nunca se guarda ni envía la contraseña en texto plano.
+// Requiere contexto seguro: HTTPS o localhost.
+async function hashPassword(password) {
+  const data = new TextEncoder().encode(password);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ---- Checkboxes de módulos ----
+function renderModulosChecks(containerId, seleccionados, excluir) {
+  const el = document.getElementById(containerId); if (!el) return;
+  const sel = new Set(seleccionados || []);
+  const exc = new Set(excluir || []);
+  el.innerHTML = MODULOS.map(m => {
+    const fijo = m.id === 'dashboard';
+    const oculto = exc.has(m.id);
+    if (oculto) return '';
+    return '<label' + (fijo ? ' class="mod-fijo"' : '') + '>' +
+      '<input type="checkbox" value="' + m.id + '"' +
+      ((fijo || sel.has(m.id)) ? ' checked' : '') + (fijo ? ' disabled' : '') + '>' +
+      m.label + '</label>';
+  }).join('');
+}
+
+function leerModulosChecks(containerId) {
+  const el = document.getElementById(containerId); if (!el) return [];
+  return [...el.querySelectorAll('input:checked:not(:disabled)')].map(i => i.value);
+}
+
+// ---- Módulos por rol (tarjeta de permisos) ----
+function renderPermModulos() {
+  const rolSel = document.getElementById('perm-rol'); if (!rolSel) return;
+  renderModulosChecks('perm-modulos', vistasDeRol(rolSel.value));
+}
+
+document.getElementById('perm-rol').addEventListener('change', renderPermModulos);
+
+document.getElementById('perm-guardar').addEventListener('click', async () => {
+  const rol = document.getElementById('perm-rol').value;
+  const vistas = ['dashboard', ...leerModulosChecks('perm-modulos').filter(v => v !== 'dashboard')];
+  if (rol === 'administrador' && !vistas.includes('usuarios')) {
+    showToast('El rol administrador debe conservar el módulo Usuarios', 'error'); return;
+  }
+  try {
+    await setDoc(doc(db, 'roles_config', rol), { vistas, fecha_modificacion: Timestamp.now() });
+    showToast('Módulos del rol ' + (ROLES_LABEL[rol] || rol) + ' guardados');
+  } catch (e) { console.error(e); showToast('Error al guardar los módulos del rol', 'error'); }
+});
+
+document.getElementById('perm-restaurar').addEventListener('click', async () => {
+  const rol = document.getElementById('perm-rol').value;
+  if (!confirm('¿Restaurar los módulos por defecto del rol ' + (ROLES_LABEL[rol] || rol) + '?')) return;
+  try {
+    await deleteDoc(doc(db, 'roles_config', rol));
+    showToast('Módulos por defecto restaurados');
+  } catch (e) { console.error(e); showToast('Error al restaurar', 'error'); }
+});
+
+function updateUsuariosTable() {
+  const tb = document.getElementById('usuarios-table'); if (!tb) return;
+  document.getElementById('usr-count').textContent = usuarios.length + ' usuario' + (usuarios.length !== 1 ? 's' : '');
+  if (!usuarios.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-state">No hay usuarios</td></tr>'; return; }
+  const labelMod = id => (MODULOS.find(m => m.id === id) || { label: id }).label;
+  tb.innerHTML = usuarios.map(u => '<tr>' +
+    '<td>' + (u.nombre || '-') + '</td><td>' + u.username + '</td>' +
+    '<td>' + (ROLES_LABEL[u.rol] || u.rol) + '</td>' +
+    '<td>' + ((u.modulos_extra && u.modulos_extra.length) ? u.modulos_extra.map(labelMod).join(', ') : '-') + '</td>' +
+    '<td>' + (u.activo === false ? 'Inactivo' : 'Activo') + '</td>' +
+    '<td>' + fdate(u.fecha_creacion) + '</td>' +
+    '<td class="actions">' +
+      '<button class="btn-icon" data-edit-usr="' + u.id + '" title="Editar">\u270f\ufe0f</button>' +
+      '<button class="btn-icon" data-tog-usr="' + u.id + '" title="' + (u.activo === false ? 'Activar' : 'Desactivar') + '">' + (u.activo === false ? '\u2705' : '\ud83d\udeab') + '</button>' +
+      '<button class="btn-icon" data-del-usr="' + u.id + '" title="Eliminar">\ud83d\uddd1\ufe0f</button>' +
+    '</td></tr>').join('');
+  tb.querySelectorAll('[data-edit-usr]').forEach(b => b.addEventListener('click', () => editUsuario(b.dataset.editUsr)));
+  tb.querySelectorAll('[data-tog-usr]').forEach(b => b.addEventListener('click', () => toggleUsuario(b.dataset.togUsr)));
+  tb.querySelectorAll('[data-del-usr]').forEach(b => b.addEventListener('click', () => delUsuario(b.dataset.delUsr)));
+}
+
+document.getElementById('usr-rol').addEventListener('change', () => {
+  const rol = document.getElementById('usr-rol').value;
+  renderModulosChecks('usr-modulos', [], rol ? vistasDeRol(rol) : []);
+});
+
+document.getElementById('usuario-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nombre = document.getElementById('usr-nombre').value.trim();
+  const username = document.getElementById('usr-username').value.trim().toLowerCase();
+  const password = document.getElementById('usr-password').value;
+  const rol = document.getElementById('usr-rol').value;
+  if (!nombre || !username || !password || !rol) { showToast('Complete todos los campos', 'error'); return; }
+  if (password.length < 6) { showToast('La contrase\u00f1a debe tener al menos 6 caracteres', 'error'); return; }
+  if (usuarios.some(u => u.username === username)) { showToast('El nombre de usuario ya existe', 'error'); return; }
+  try {
+    const password_hash = await hashPassword(password);
+    // Se persiste solo el hash; el rol queda fijo desde la creaci\u00f3n.
+    const base = new Set(vistasDeRol(rol));
+    const modulos_extra = leerModulosChecks('usr-modulos').filter(v => !base.has(v));
+    await addDoc(collection(db, 'usuarios'), {
+      nombre, username, password_hash, rol, modulos_extra,
+      activo: true,
+      fecha_creacion: Timestamp.now()
+    });
+    showToast('Usuario ' + username + ' creado');
+    document.getElementById('usuario-form').reset();
+    renderModulosChecks('usr-modulos', []);
+  } catch (err) { console.error(err); showToast('Error al crear el usuario', 'error'); }
+});
+
+function editUsuario(id) {
+  const u = usuarios.find(x => x.id === id); if (!u) return;
+  document.getElementById('eu-id').value = u.id;
+  document.getElementById('eu-nombre').value = u.nombre || '';
+  document.getElementById('eu-username').value = u.username || '';
+  document.getElementById('eu-password').value = '';
+  document.getElementById('eu-rol').value = ROLES_LABEL[u.rol] || u.rol; // solo lectura
+  renderModulosChecks('eu-modulos', u.modulos_extra || [], vistasDeRol(u.rol));
+  document.getElementById('modal-usuario').classList.add('active');
+}
+
+document.getElementById('edit-usuario-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id = document.getElementById('eu-id').value;
+  const nombre = document.getElementById('eu-nombre').value.trim();
+  const username = document.getElementById('eu-username').value.trim().toLowerCase();
+  const password = document.getElementById('eu-password').value;
+  if (usuarios.some(u => u.username === username && u.id !== id)) { showToast('El nombre de usuario ya existe', 'error'); return; }
+  const cambios = { nombre, username, modulos_extra: leerModulosChecks('eu-modulos') }; // el rol NO se incluye: no es modificable
+  if (password) {
+    if (password.length < 6) { showToast('La nueva contrase\u00f1a debe tener al menos 6 caracteres', 'error'); return; }
+    cambios.password_hash = await hashPassword(password);
+  }
+  try {
+    await updateDoc(doc(db, 'usuarios', id), cambios);
+    if (sesionActual && sesionActual.id === id) {
+      sesionActual.modulos_extra = cambios.modulos_extra;
+      localStorage.setItem(SESSION_KEY, JSON.stringify(sesionActual));
+      aplicarRol(sesionActual.rol, sesionActual.modulos_extra);
+    }
+    showToast('Usuario actualizado');
+    document.getElementById('modal-usuario').classList.remove('active');
+  } catch (err) { console.error(err); showToast('Error al actualizar', 'error'); }
+});
+
+async function toggleUsuario(id) {
+  const u = usuarios.find(x => x.id === id); if (!u) return;
+  if (sesionActual && sesionActual.id === id) { showToast('No puede desactivar su propia cuenta', 'error'); return; }
+  try {
+    await updateDoc(doc(db, 'usuarios', id), { activo: u.activo === false });
+    showToast('Usuario ' + (u.activo === false ? 'activado' : 'desactivado'));
+  } catch (e) { console.error(e); showToast('Error al cambiar estado', 'error'); }
+}
+
+async function delUsuario(id) {
+  if (!confirm('\u00bfEliminar este usuario?')) return;
+  try { await deleteDoc(doc(db, 'usuarios', id)); showToast('Usuario eliminado'); }
+  catch (e) { console.error(e); showToast('Error al eliminar', 'error'); }
+}
+
+// Verificaci\u00f3n de credenciales (para el login futuro):
+// compara el hash del password ingresado contra password_hash guardado.
+async function verificarCredenciales(username, password) {
+  const u = usuarios.find(x => x.username === String(username).trim().toLowerCase());
+  if (!u || u.activo === false) return null;
+  const hash = await hashPassword(password);
+  return hash === u.password_hash ? { id: u.id, nombre: u.nombre, username: u.username, rol: u.rol, modulos_extra: u.modulos_extra || [] } : null;
+}
+window.verificarCredenciales = verificarCredenciales;
+
+// ============================================================
 //  SECCIONES (CRUD)
 // ============================================================
 function updateSeccionesTable() {
@@ -1321,6 +1601,19 @@ async function seedInicial() {
     { nombre: 'MAURICIO BENAVIDES MENDOZA', grado: 'TENIENTE PRIMERO AB.', cargo: 'JEFE DEPTO. ABASTECIMIENTO Y FZAS.', rut: '18.201.238-6', orden: 2 },
     { nombre: 'SEBASTIÁN FERNÁNDEZ DÍAZ', grado: 'CAPITÁN DE CORBETA', cargo: 'SUB-JEFE DEPTO. BITAR. SOCIAL IIa Z.N', rut: '15.071.331-5', orden: 3 }
   ]);
+  // Usuario inicial si la colección está vacía (cambiar la contraseña al primer ingreso)
+  const usrSnap = await getDocs(collection(db, 'usuarios'));
+  if (usrSnap.empty) {
+    await addDoc(collection(db, 'usuarios'), {
+      nombre: 'ADMINISTRADOR INICIAL',
+      username: 'admin',
+      password_hash: await hashPassword('admin123'),
+      rol: 'administrador',
+      activo: true,
+      fecha_creacion: Timestamp.now()
+    });
+    console.warn('Usuario inicial creado: admin / admin123 — cambie la contraseña.');
+  }
   await seedIfEmpty('secciones', [
     { nombre: 'COCINA' }, { nombre: 'BAR' }, { nombre: 'PANADERÍA' }, { nombre: 'LAVANDERÍA' }, { nombre: 'JARDINES' }
   ]);
@@ -1347,5 +1640,10 @@ async function init() {
   renderSalItems();
   try { await seedInicial(); } catch (e) { console.error('Seed error:', e); }
   setupListeners();
+  renderModulosChecks('usr-modulos', []);
+  renderPermModulos();
+  const sesion = leerSesion();
+  if (sesion && sesion.username && sesion.rol) mostrarApp(sesion);
+  else mostrarLogin();
 }
 init();

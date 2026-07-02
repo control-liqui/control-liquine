@@ -1127,3 +1127,107 @@ body {
   .line-entry { grid-template-columns: 1fr; }
   .totales-row { min-width: 0; width: 100%; }
 }
+/* ===== Login ===== */
+.login-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sidebar-bg, #1e293b);
+  z-index: 500;
+  padding: 1rem;
+}
+.login-card {
+  background: var(--surface, #fff);
+  border-radius: var(--radius, 8px);
+  box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,.3));
+  padding: 2rem;
+  width: 100%;
+  max-width: 380px;
+}
+.login-logo {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+.login-logo svg {
+  width: 48px;
+  height: 48px;
+  color: var(--primary, #2563eb);
+}
+.login-logo h1 {
+  font-size: 1.25rem;
+  margin: 0.5rem 0 0.25rem;
+}
+.login-logo p {
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #64748b);
+}
+.login-card .form-group {
+  margin-bottom: 1rem;
+}
+.login-error {
+  color: var(--danger, #dc2626);
+  font-size: 0.8125rem;
+  min-height: 1.1em;
+  margin: 0 0 0.75rem;
+}
+.login-btn {
+  width: 100%;
+}
+/* Sesión en sidebar */
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-bottom: 0.5rem;
+}
+.session-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #fff;
+}
+.session-rol {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  text-transform: capitalize;
+}
+.btn-logout {
+  width: 100%;
+  padding: 0.4rem;
+  font-size: 0.75rem;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.btn-logout:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* ===== Grilla de módulos (checkboxes) ===== */
+.modulos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.4rem 0.75rem;
+  padding: 0.5rem 0;
+}
+.modulos-grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  cursor: pointer;
+  text-transform: none;
+}
+.modulos-grid input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+.modulos-grid label.mod-fijo {
+  opacity: 0.6;
+  cursor: default;
+}
