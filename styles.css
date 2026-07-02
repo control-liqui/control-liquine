@@ -1231,3 +1231,27 @@ body {
   opacity: 0.6;
   cursor: default;
 }
+
+/* ===== Detalle de factura ===== */
+.modal-lg { max-width: 760px; width: 95%; }
+.detalle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+.detalle-grid .dg-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-secondary, #64748b);
+}
+.detalle-totales {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+.detalle-totales strong { margin-left: 0.35rem; }

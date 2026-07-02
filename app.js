@@ -126,13 +126,13 @@ const cuentaNombre = (cod) => (cuentas.find(c => String(c.codigo) === String(cod
 //  Navegación + Roles
 // ============================================================
 const ROLES_VIEWS = {
-  administrador: ['dashboard','recepcion','salidas','inventario','articulos','proveedores','cuentas','firmantes','secciones','usuarios','historial','reportes','buscar'],
-  bodeguero:     ['dashboard','recepcion','salidas','inventario','articulos','proveedores','historial','buscar'],
-  jefe_finanzas: ['dashboard','inventario','historial','reportes','buscar'],
-  subjefe:       ['dashboard','inventario','historial','reportes','buscar'],
+  administrador: ['dashboard','recepcion','salidas','inventario','facturas','articulos','proveedores','cuentas','firmantes','secciones','usuarios','historial','reportes','buscar'],
+  bodeguero:     ['dashboard','recepcion','salidas','inventario','facturas','articulos','proveedores','historial','buscar'],
+  jefe_finanzas: ['dashboard','inventario','facturas','historial','reportes','buscar'],
+  subjefe:       ['dashboard','inventario','facturas','historial','reportes','buscar'],
   encargado:     ['dashboard','salidas','inventario','buscar'],
-  contador:      ['dashboard','inventario','reportes','buscar'],
-  auditor:       ['dashboard','inventario','historial','reportes','buscar']
+  contador:      ['dashboard','inventario','facturas','reportes','buscar'],
+  auditor:       ['dashboard','inventario','facturas','historial','reportes','buscar']
 };
 
 // Catálogo de módulos del sistema (id de vista -> etiqueta)
@@ -141,6 +141,7 @@ const MODULOS = [
   { id: 'recepcion',  label: 'Recepción' },
   { id: 'salidas',    label: 'Salidas' },
   { id: 'inventario', label: 'Inventario' },
+  { id: 'facturas',   label: 'Facturas' },
   { id: 'articulos',  label: 'Artículos' },
   { id: 'proveedores',label: 'Proveedores' },
   { id: 'cuentas',    label: 'Cuentas contables' },
@@ -175,7 +176,38 @@ function aplicarRol(rol, extras) {
   if (!activa || activa.style.display === 'none') irAVista('dashboard');
 }
 
+// Limpia formularios y datos temporales de una vista al abandonarla
+function limpiarVista(viewId) {
+  if (!viewId) return;
+  const sec = document.getElementById(viewId + '-view');
+  if (!sec) return;
+  sec.querySelectorAll('form').forEach(f => f.reset());
+  if (viewId === 'recepcion') {
+    if (typeof limpiarRecepcion === 'function') limpiarRecepcion();
+    const iva = document.getElementById('rec-iva'); if (iva) { iva.value = ''; iva.dispatchEvent(new Event('input')); }
+    const p = document.getElementById('rec-acta-panel'); if (p) p.style.display = 'none';
+    initFechas();
+  }
+  if (viewId === 'salidas') {
+    if (typeof limpiarSalida === 'function') limpiarSalida();
+    const p = document.getElementById('sal-acta-panel'); if (p) p.style.display = 'none';
+    initFechas();
+  }
+  if (viewId === 'usuarios') {
+    renderModulosChecks('usr-modulos', []);
+    renderPermModulos();
+  }
+  if (viewId === 'reportes') {
+    const r = document.getElementById('report-result'); if (r) r.style.display = 'none';
+  }
+  if (viewId === 'facturas') initFacFiltros();
+}
+
+let vistaActual = 'dashboard';
+
 function irAVista(viewId) {
+  if (viewId !== vistaActual) { try { limpiarVista(vistaActual); } catch (e) { console.error(e); } }
+  vistaActual = viewId;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === viewId));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const el = document.getElementById(viewId + '-view');
@@ -354,7 +386,7 @@ function setupListeners() {
 
   onSnapshot(query(collection(db, 'facturas'), orderBy('fecha_creacion', 'desc')), snap => {
     facturas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    updateDashboard(); updateHistRecepciones();
+    updateDashboard(); updateHistRecepciones(); updateFacturasView();
   }, e => console.error(e));
 
   onSnapshot(query(collection(db, 'salidas'), orderBy('fecha_creacion', 'desc')), snap => {
@@ -1142,6 +1174,136 @@ async function delFirmante(id) {
 }
 
 // ============================================================
+//  FACTURAS (consulta y reportes)
+// ============================================================
+function initFacFiltros() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const hace30 = new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0];
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+  set('fac-from', hace30); set('fac-to', hoy); set('fac-prov', ''); set('fac-num', ''); set('fac-estado', 'vigentes');
+  updateFacturasView();
+}
+
+function filtrarFacturas() {
+  const from = document.getElementById('fac-from');
+  if (!from) return [];
+  const fFrom = from.value ? new Date(from.value + 'T00:00:00') : null;
+  const toV = document.getElementById('fac-to').value;
+  const fTo = toV ? new Date(toV + 'T23:59:59') : null;
+  const prov = document.getElementById('fac-prov').value.trim().toUpperCase();
+  const nfac = document.getElementById('fac-num').value.trim().toUpperCase();
+  const estado = document.getElementById('fac-estado').value;
+  return facturas.filter(f => {
+    if (estado === 'vigentes' && f.anulada) return false;
+    if (estado === 'anuladas' && !f.anulada) return false;
+    const fd = toDate(f.fecha_factura);
+    if (fFrom && fd < fFrom) return false;
+    if (fTo && fd > fTo) return false;
+    if (prov && !((f.razon_social || '').toUpperCase().includes(prov) || (f.rut || '').toUpperCase().includes(prov))) return false;
+    if (nfac && !String(f.n_factura || '').toUpperCase().includes(nfac)) return false;
+    return true;
+  });
+}
+
+function updateFacturasView() {
+  const tb = document.getElementById('facturas-table');
+  if (!tb) return;
+  const data = filtrarFacturas();
+  const neto = data.reduce((s, f) => s + (Number(f.neto) || 0), 0);
+  const iva = data.reduce((s, f) => s + (Number(f.iva) || 0), 0);
+  document.getElementById('fac-t-cant').textContent = data.length;
+  document.getElementById('fac-t-neto').textContent = money(neto);
+  document.getElementById('fac-t-iva').textContent = money(iva);
+  document.getElementById('fac-t-total').textContent = money(neto + iva);
+  if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="empty-state">No hay facturas con esos filtros</td></tr>'; return; }
+  tb.innerHTML = data.map(f => '<tr class="' + (f.anulada ? 'row-anulada' : '') + '">' +
+    '<td>' + (f.n_acta || '-') + '</td><td>' + (f.n_factura || '-') + '</td>' +
+    '<td>' + fdate(f.fecha_factura) + '</td><td>' + fdate(f.fecha_recepcion) + '</td>' +
+    '<td>' + (f.razon_social || '-') + '</td>' +
+    '<td>' + money(f.neto) + '</td><td>' + money(f.iva) + '</td><td>' + money(f.total) + '</td>' +
+    '<td>' + (f.anulada ? 'ANULADA' : 'Vigente') + '</td>' +
+    '<td class="actions">' +
+      '<button class="btn-icon" data-fac-det="' + f.id + '" title="Ver detalle">\ud83d\udd0d</button>' +
+      '<button class="btn-icon" data-fac-rec="' + f.id + '" title="Acta Recepci\u00f3n PDF">\ud83d\udcc4</button>' +
+      '<button class="btn-icon" data-fac-ing="' + f.id + '" title="Acta Ingreso PDF">\ud83d\udcc3</button>' +
+    '</td></tr>').join('');
+  tb.querySelectorAll('[data-fac-det]').forEach(b => b.addEventListener('click', () => verDetalleFactura(b.dataset.facDet)));
+  tb.querySelectorAll('[data-fac-rec]').forEach(b => b.addEventListener('click', () => { const f = facturas.find(x => x.id === b.dataset.facRec); if (f) actaRecepcion(f); }));
+  tb.querySelectorAll('[data-fac-ing]').forEach(b => b.addEventListener('click', () => { const f = facturas.find(x => x.id === b.dataset.facIng); if (f) actaIngresoPanol(f); }));
+}
+
+let facturaDetalle = null;
+function verDetalleFactura(id) {
+  const f = facturas.find(x => x.id === id); if (!f) return;
+  facturaDetalle = f;
+  document.getElementById('mf-titulo').textContent = 'Factura ' + (f.n_factura || '-') + (f.anulada ? ' (ANULADA)' : '');
+  const dato = (l, v) => '<div><span class="dg-label">' + l + '</span>' + (v || '-') + '</div>';
+  document.getElementById('mf-datos').innerHTML =
+    dato('N\u00b0 Acta Recepci\u00f3n', f.n_acta) +
+    dato('Proveedor', f.razon_social) +
+    dato('RUT', f.rut) +
+    dato('N\u00b0 Orden de compra', f.n_orden) +
+    dato('Fecha factura', fdate(f.fecha_factura)) +
+    dato('Fecha recepci\u00f3n', fdate(f.fecha_recepcion)) +
+    (f.anulada ? dato('Motivo anulaci\u00f3n', f.motivo_anulacion) : '');
+  document.getElementById('mf-items').innerHTML = (f.items || []).map((it, i) =>
+    '<tr><td>' + (i + 1) + '</td><td>' + it.codigo + '</td><td>' + it.nombre + '</td><td>' + num(it.cantidad) +
+    '</td><td>' + it.unidad + '</td><td>' + money(it.precio) + '</td><td>' + money(it.total) + '</td></tr>').join('');
+  document.getElementById('mf-totales').innerHTML =
+    '<span>Neto:<strong>' + money(f.neto) + '</strong></span>' +
+    '<span>IVA:<strong>' + money(f.iva) + '</strong></span>' +
+    '<span>Total:<strong>' + money(f.total) + '</strong></span>';
+  document.getElementById('modal-factura').classList.add('active');
+}
+
+document.getElementById('mf-pdf-rec').addEventListener('click', () => { if (facturaDetalle) actaRecepcion(facturaDetalle); });
+document.getElementById('mf-pdf-ing').addEventListener('click', () => { if (facturaDetalle) actaIngresoPanol(facturaDetalle); });
+
+['fac-from','fac-to','fac-prov','fac-num','fac-estado'].forEach(id => {
+  const e = document.getElementById(id);
+  if (e) e.addEventListener('input', updateFacturasView);
+});
+document.getElementById('fac-limpiar').addEventListener('click', initFacFiltros);
+
+function descargarCSV(nombre, filas) {
+  if (!filas.length) { showToast('No hay datos para exportar', 'error'); return; }
+  const hs = Object.keys(filas[0]);
+  const csv = [hs.join(','), ...filas.map(r => hs.map(h => {
+    let v = r[h]; if (v === null || v === undefined) v = '';
+    if (typeof v === 'string' && (v.includes(',') || v.includes('"'))) v = '"' + v.replace(/"/g, '""') + '"';
+    return v;
+  }).join(','))].join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = nombre + '_' + new Date().toISOString().split('T')[0] + '.csv'; a.click();
+  showToast('CSV exportado');
+}
+
+document.getElementById('fac-csv').addEventListener('click', () => {
+  const data = filtrarFacturas().map(f => ({
+    'N Acta': f.n_acta || '', 'N Factura': f.n_factura || '',
+    'Fecha Factura': fdate(f.fecha_factura), 'Fecha Recepcion': fdate(f.fecha_recepcion),
+    'RUT': f.rut || '', 'Proveedor': f.razon_social || '', 'N Orden': f.n_orden || '',
+    'Neto': Number(f.neto) || 0, 'IVA': Number(f.iva) || 0, 'Total': Number(f.total) || 0,
+    'Estado': f.anulada ? 'ANULADA' : 'VIGENTE'
+  }));
+  descargarCSV('facturas', data);
+});
+
+document.getElementById('fac-csv-prov').addEventListener('click', () => {
+  const agrupado = {};
+  filtrarFacturas().forEach(f => {
+    const k = f.rut || f.razon_social || 'SIN PROVEEDOR';
+    if (!agrupado[k]) agrupado[k] = { 'RUT': f.rut || '', 'Proveedor': f.razon_social || '', 'Facturas': 0, 'Neto': 0, 'IVA': 0, 'Total': 0 };
+    agrupado[k]['Facturas'] += 1;
+    agrupado[k]['Neto'] += Number(f.neto) || 0;
+    agrupado[k]['IVA'] += Number(f.iva) || 0;
+    agrupado[k]['Total'] += Number(f.total) || 0;
+  });
+  descargarCSV('facturas_por_proveedor', Object.values(agrupado));
+});
+
+// ============================================================
 //  USUARIOS (CRUD) - el rol se asigna al crear y NO es editable
 // ============================================================
 const ROLES_LABEL = {
@@ -1642,6 +1804,7 @@ async function init() {
   setupListeners();
   renderModulosChecks('usr-modulos', []);
   renderPermModulos();
+  initFacFiltros();
   const sesion = leerSesion();
   if (sesion && sesion.username && sesion.rol) mostrarApp(sesion);
   else mostrarLogin();
