@@ -11,13 +11,13 @@ import {
 
 // ---- Configuración de Firebase (tu proyecto actual) ----
 const firebaseConfig = {
-  apiKey: "AIzaSyCGLhqCndD9zpSraPhYLAMul6jtvavcoek",
-  authDomain: "inventario-49d3b.firebaseapp.com",
-  projectId: "inventario-49d3b",
-  storageBucket: "inventario-49d3b.firebasestorage.app",
-  messagingSenderId: "837690492755",
-  appId: "1:837690492755:web:9882ffec8433786556c3a6",
-  measurementId: "G-HRH7SSM5ZB"
+  apiKey: "AIzaSyDqPxxU7qUfazmohEQWMdouuyi3OY07oSo",
+  authDomain: "control-liquine.firebaseapp.com",
+  projectId: "control-liquine",
+  storageBucket: "control-liquine.firebasestorage.app",
+  messagingSenderId: "588535543611",
+  appId: "1:588535543611:web:743cd717daf9f5d593291e",
+  measurementId: "G-JNEYDNWTPM"
 };
 
 // ---- Configuración institucional (editar según recinto) ----
