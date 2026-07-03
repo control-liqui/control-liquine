@@ -355,6 +355,7 @@
         <div class="card">
           <div class="card-header">
             <div class="filter-group">
+              <select id="inv-familia-filter"><option value="all">Todas las familias</option></select>
               <select id="inv-cuenta-filter"><option value="all">Todas las cuentas</option></select>
               <select id="inv-status-filter">
                 <option value="all">Todos los estados</option>
@@ -368,7 +369,7 @@
             <div class="table-container">
               <table class="data-table">
                 <thead>
-                  <tr><th>Código</th><th>Artículo</th><th>Cuenta gasto</th><th>Stock</th><th>Unidad</th><th>Stock mín.</th><th>Costo prom.</th><th>Saldo valorizado</th><th>Estado</th><th>Acciones</th></tr>
+                  <tr><th>Código</th><th>Artículo</th><th>Familia</th><th>Cuenta gasto</th><th>Stock</th><th>Unidad</th><th>Stock mín.</th><th>Costo prom.</th><th>Saldo valorizado</th><th>Estado</th><th>Acciones</th></tr>
                 </thead>
                 <tbody id="inventory-table"></tbody>
               </table>
@@ -403,6 +404,10 @@
                 <label for="art-stockmin">Stock mínimo *</label>
                 <input type="number" id="art-stockmin" min="0" step="0.01" required placeholder="0">
               </div>
+              <div class="form-group">
+                <label for="art-familia">Familia</label>
+                <select id="art-familia"><option value="">Sin familia</option></select>
+              </div>
               <div class="form-group full">
                 <label for="art-cuenta">Cuenta de gasto asociada *</label>
                 <select id="art-cuenta" required><option value="">Seleccionar...</option></select>
@@ -415,12 +420,33 @@
           </form>
         </div>
 
+        <div class="card form-card">
+          <h3>Familias de productos</h3>
+          <p class="field-hint">Las familias agrupan artículos para listados, conteo de bodega y reportes.</p>
+          <form id="familia-form">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="fam-nombre">Nombre de la familia *</label>
+                <input type="text" id="fam-nombre" required class="uppercase-input" placeholder="Ej: CARNES, ABARROTES, ASEO" autocomplete="off">
+              </div>
+              <div class="form-group" style="display:flex;align-items:flex-end;">
+                <button type="submit" class="btn btn-primary">Agregar Familia</button>
+              </div>
+            </div>
+          </form>
+          <div class="table-container">
+            <table class="data-table">
+              <thead><tr><th>Familia</th><th>Artículos</th><th>Acciones</th></tr></thead>
+              <tbody id="familias-table"></tbody>
+            </table>
+          </div>
+        </div>
         <div class="card">
           <div class="card-header"><h3>Listado de artículos</h3><span class="result-count" id="art-count">0 artículos</span></div>
           <div class="card-content">
             <div class="table-container">
               <table class="data-table">
-                <thead><tr><th>Código</th><th>Nombre</th><th>Unidad</th><th>Stock mín.</th><th>Cuenta</th><th>Acciones</th></tr></thead>
+                <thead><tr><th>Código</th><th>Nombre</th><th>Familia</th><th>Unidad</th><th>Stock mín.</th><th>Cuenta</th><th>Acciones</th></tr></thead>
                 <tbody id="articulos-table"></tbody>
               </table>
             </div>
@@ -727,6 +753,12 @@
             <button class="btn btn-primary" onclick="reporteInventario()">Generar</button>
           </div>
           <div class="card report-card">
+            <div class="report-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></div>
+            <h3>Inventario por familia</h3>
+            <p>Stock y valorización agrupados por familia</p>
+            <button class="btn btn-primary" onclick="reporteFamilia()">Generar</button>
+          </div>
+          <div class="card report-card">
             <div class="report-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg></div>
             <h3>Mayor por artículo</h3>
             <p>Entradas, salidas y saldo valorizado</p>
@@ -823,6 +855,7 @@
           <div class="form-group"><label for="ea-nombre">Nombre</label><input type="text" id="ea-nombre" required></div>
           <div class="form-group"><label for="ea-unidad">Unidad de medida</label><select id="ea-unidad" required></select></div>
           <div class="form-group"><label for="ea-stockmin">Stock mínimo</label><input type="number" id="ea-stockmin" min="0" step="0.01"></div>
+          <div class="form-group"><label for="ea-familia">Familia</label><select id="ea-familia"><option value="">Sin familia</option></select></div>
           <div class="form-group full"><label for="ea-cuenta">Cuenta de gasto</label><select id="ea-cuenta" required></select></div>
         </div>
         <div class="modal-actions"><button type="button" class="btn btn-secondary" data-close="modal-articulo">Cancelar</button><button type="submit" class="btn btn-primary">Guardar</button></div>

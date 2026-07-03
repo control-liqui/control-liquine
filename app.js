@@ -34,7 +34,7 @@ const UNIDADES = ['UNIDAD','CAJA','PAQUETE','KILOGRAMO (KG)','GRAMO (GR)','LITRO
 
 // ---- Estado global ----
 let app, db;
-let articulos = [], proveedores = [], cuentas = [], firmantes = [], secciones = [], usuarios = [];
+let articulos = [], proveedores = [], cuentas = [], firmantes = [], secciones = [], usuarios = [], familias = [];
 let facturas = [], salidas = [], movimientos = [];
 let recItems = [];
 let salItems = [];
@@ -366,6 +366,12 @@ function setupListeners() {
     secciones.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
     llenarSeccionesSelect(); updateSeccionesTable();
   }, e => console.error(e));
+
+  onSnapshot(collection(db, 'familias'), snap => {
+    familias = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    familias.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+    llenarFamiliasSelects(); updateFamiliasTable(); updateInventoryTable(); updateArticulosTable();
+  });
 
   onSnapshot(collection(db, 'usuarios'), snap => {
     usuarios = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -897,7 +903,9 @@ function updateInventoryTable() {
   const tb = document.getElementById('inventory-table'); if (!tb) return;
   const cf = (document.getElementById('inv-cuenta-filter') || {}).value || 'all';
   const sf = (document.getElementById('inv-status-filter') || {}).value || 'all';
+  const ff = (document.getElementById('inv-familia-filter') || {}).value || 'all';
   let list = [...articulos];
+  if (ff !== 'all') list = list.filter(a => (a.familia_id || '') === ff);
   if (cf !== 'all') list = list.filter(a => String(a.cuenta_codigo) === String(cf));
   if (sf !== 'all') list = list.filter(a => {
     const st = Number(a.stock), mn = Number(a.stock_minimo);
@@ -906,26 +914,115 @@ function updateInventoryTable() {
     if (sf === 'out') return st === 0;
     return true;
   });
-  if (!list.length) { tb.innerHTML = '<tr><td colspan="10" class="empty-state">No hay artículos que mostrar</td></tr>'; return; }
-  tb.innerHTML = list.map(a => {
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="11" class="empty-state">No hay artículos que mostrar</td></tr>'; return; }
+  // Orden por familia y nombre; encabezado con subtotal por familia (facilita el conteo de bodega)
+  list.sort((a, b) => (a.familia_nombre || 'SIN FAMILIA').localeCompare(b.familia_nombre || 'SIN FAMILIA') || (a.nombre || '').localeCompare(b.nombre || ''));
+  let html = '', famActual = null;
+  const filaArt = a => {
     const st = Number(a.stock) || 0, mn = Number(a.stock_minimo) || 0, cp = Number(a.costo_promedio) || 0;
     let estado = 'Disponible', bc = 'badge-success';
     if (st === 0) { estado = 'Sin Stock'; bc = 'badge-danger'; }
     else if (st <= mn) { estado = 'Stock Bajo'; bc = 'badge-warning'; }
     return '<tr>' +
-      '<td>' + a.codigo + '</td><td>' + a.nombre + '</td><td>' + (a.cuenta_nombre || '-') + '</td>' +
+      '<td>' + a.codigo + '</td><td>' + a.nombre + '</td><td>' + (a.familia_nombre || 'SIN FAMILIA') + '</td><td>' + (a.cuenta_nombre || '-') + '</td>' +
       '<td>' + num(st) + '</td><td>' + a.unidad_medida + '</td><td>' + num(mn) + '</td>' +
       '<td>' + money(cp) + '</td><td>' + money(st * cp) + '</td>' +
       '<td><span class="badge ' + bc + '">' + estado + '</span></td>' +
       '<td class="actions"><button class="btn-icon" data-edit-art="' + a.id + '">✏️</button>' +
       '<button class="btn-icon" data-del-art="' + a.id + '">🗑️</button></td></tr>';
-  }).join('');
+  };
+  const famsEnLista = new Set(list.map(a => a.familia_nombre || 'SIN FAMILIA'));
+  const agrupar = famsEnLista.size > 1;
+  list.forEach(a => {
+    const fam = a.familia_nombre || 'SIN FAMILIA';
+    if (agrupar && fam !== famActual) {
+      famActual = fam;
+      const grupo = list.filter(x => (x.familia_nombre || 'SIN FAMILIA') === fam);
+      const subtotal = grupo.reduce((s, x) => s + (Number(x.stock) || 0) * (Number(x.costo_promedio) || 0), 0);
+      html += '<tr class="row-familia"><td colspan="11">' + fam +
+        '<span class="fam-subtotal">' + grupo.length + ' art. · ' + money(subtotal) + '</span></td></tr>';
+    }
+    html += filaArt(a);
+  });
+  tb.innerHTML = html;
   tb.querySelectorAll('[data-edit-art]').forEach(b => b.addEventListener('click', () => editArticulo(b.dataset.editArt)));
   tb.querySelectorAll('[data-del-art]').forEach(b => b.addEventListener('click', () => delArticulo(b.dataset.delArt)));
 }
-['inv-cuenta-filter','inv-status-filter'].forEach(id => {
+['inv-familia-filter','inv-cuenta-filter','inv-status-filter'].forEach(id => {
   const e = document.getElementById(id); if (e) e.addEventListener('change', updateInventoryTable);
 });
+
+// ============================================================
+//  FAMILIAS DE PRODUCTOS (CRUD)
+// ============================================================
+function familiaNombre(id) {
+  const f = familias.find(x => x.id === id);
+  return f ? f.nombre : '';
+}
+
+function llenarFamiliasSelects() {
+  const ops = familias.map(f => '<option value="' + f.id + '">' + f.nombre + '</option>').join('');
+  const setSel = (id, primero) => {
+    const el = document.getElementById(id); if (!el) return;
+    const val = el.value;
+    el.innerHTML = primero + ops;
+    if ([...el.options].some(o => o.value === val)) el.value = val;
+  };
+  setSel('art-familia', '<option value="">Sin familia</option>');
+  setSel('ea-familia', '<option value="">Sin familia</option>');
+  setSel('inv-familia-filter', '<option value="all">Todas las familias</option>');
+}
+
+function updateFamiliasTable() {
+  const tb = document.getElementById('familias-table'); if (!tb) return;
+  if (!familias.length) { tb.innerHTML = '<tr><td colspan="3" class="empty-state">No hay familias</td></tr>'; return; }
+  tb.innerHTML = familias.map(f => {
+    const n = articulos.filter(a => a.familia_id === f.id).length;
+    return '<tr><td>' + f.nombre + '</td><td>' + n + '</td>' +
+      '<td class="actions">' +
+      '<button class="btn-icon" data-edit-fam="' + f.id + '" title="Renombrar">\u270f\ufe0f</button>' +
+      '<button class="btn-icon" data-del-fam="' + f.id + '" title="Eliminar">\ud83d\uddd1\ufe0f</button>' +
+      '</td></tr>';
+  }).join('');
+  tb.querySelectorAll('[data-edit-fam]').forEach(b => b.addEventListener('click', () => renombrarFamilia(b.dataset.editFam)));
+  tb.querySelectorAll('[data-del-fam]').forEach(b => b.addEventListener('click', () => delFamilia(b.dataset.delFam)));
+}
+
+document.getElementById('familia-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nombre = document.getElementById('fam-nombre').value.trim().toUpperCase();
+  if (!nombre) return;
+  if (familias.some(f => f.nombre === nombre)) { showToast('La familia ya existe', 'error'); return; }
+  try {
+    await addDoc(collection(db, 'familias'), { nombre, fecha_creacion: Timestamp.now() });
+    showToast('Familia ' + nombre + ' creada');
+    document.getElementById('familia-form').reset();
+  } catch (err) { console.error(err); showToast('Error al crear la familia', 'error'); }
+});
+
+async function renombrarFamilia(id) {
+  const f = familias.find(x => x.id === id); if (!f) return;
+  const nuevo = prompt('Nuevo nombre para la familia:', f.nombre);
+  if (!nuevo) return;
+  const nombre = nuevo.trim().toUpperCase();
+  if (!nombre || nombre === f.nombre) return;
+  if (familias.some(x => x.nombre === nombre && x.id !== id)) { showToast('Ya existe una familia con ese nombre', 'error'); return; }
+  try {
+    await updateDoc(doc(db, 'familias', id), { nombre });
+    // Propagar el nombre a los artículos de la familia
+    const afectados = articulos.filter(a => a.familia_id === id);
+    for (const a of afectados) await updateDoc(doc(db, 'articulos', a.id), { familia_nombre: nombre });
+    showToast('Familia renombrada');
+  } catch (e) { console.error(e); showToast('Error al renombrar', 'error'); }
+}
+
+async function delFamilia(id) {
+  const n = articulos.filter(a => a.familia_id === id).length;
+  if (n > 0) { showToast('No se puede eliminar: la familia tiene ' + n + ' artículo(s). Reasígnelos primero.', 'error'); return; }
+  if (!confirm('\u00bfEliminar esta familia?')) return;
+  try { await deleteDoc(doc(db, 'familias', id)); showToast('Familia eliminada'); }
+  catch (e) { console.error(e); showToast('Error al eliminar', 'error'); }
+}
 
 // ============================================================
 //  ARTÍCULOS (CRUD)
@@ -933,9 +1030,9 @@ function updateInventoryTable() {
 function updateArticulosTable() {
   const tb = document.getElementById('articulos-table'); if (!tb) return;
   document.getElementById('art-count').textContent = articulos.length + ' artículo' + (articulos.length !== 1 ? 's' : '');
-  if (!articulos.length) { tb.innerHTML = '<tr><td colspan="6" class="empty-state">No hay artículos</td></tr>'; return; }
+  if (!articulos.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-state">No hay artículos</td></tr>'; return; }
   tb.innerHTML = articulos.map(a => '<tr>' +
-    '<td>' + a.codigo + '</td><td>' + a.nombre + '</td><td>' + a.unidad_medida + '</td><td>' + num(a.stock_minimo) + '</td>' +
+    '<td>' + a.codigo + '</td><td>' + a.nombre + '</td><td>' + (a.familia_nombre || 'SIN FAMILIA') + '</td><td>' + a.unidad_medida + '</td><td>' + num(a.stock_minimo) + '</td>' +
     '<td>' + (a.cuenta_nombre || '-') + '</td>' +
     '<td class="actions"><button class="btn-icon" data-edit-art="' + a.id + '">✏️</button><button class="btn-icon" data-del-art="' + a.id + '">🗑️</button></td></tr>').join('');
   tb.querySelectorAll('[data-edit-art]').forEach(b => b.addEventListener('click', () => editArticulo(b.dataset.editArt)));
@@ -952,8 +1049,10 @@ document.getElementById('articulo-form').addEventListener('submit', async e => {
   try {
     const n = await siguienteCorrelativo('articulo');
     const codigo = 'ART-' + String(n).padStart(5, '0');
+    const famId = document.getElementById('art-familia').value;
     await addDoc(collection(db, 'articulos'), {
       codigo, nombre, unidad_medida: unidad, stock_minimo: stockmin,
+      familia_id: famId, familia_nombre: famId ? familiaNombre(famId) : 'SIN FAMILIA',
       cuenta_codigo: cuentaCod, cuenta_nombre: cuentaNombre(cuentaCod),
       stock: 0, costo_promedio: 0, valor_saldo: 0, fecha_creacion: Timestamp.now()
     });
@@ -970,6 +1069,7 @@ function editArticulo(id) {
   document.getElementById('ea-unidad').value = a.unidad_medida;
   document.getElementById('ea-stockmin').value = a.stock_minimo;
   document.getElementById('ea-cuenta').value = a.cuenta_codigo;
+  document.getElementById('ea-familia').value = a.familia_id || '';
   document.getElementById('modal-articulo').classList.add('active');
 }
 document.getElementById('edit-articulo-form').addEventListener('submit', async e => {
@@ -977,10 +1077,12 @@ document.getElementById('edit-articulo-form').addEventListener('submit', async e
   const id = document.getElementById('ea-id').value;
   const cuentaCod = document.getElementById('ea-cuenta').value;
   try {
+    const famId = document.getElementById('ea-familia').value;
     await updateDoc(doc(db, 'articulos', id), {
       nombre: document.getElementById('ea-nombre').value.trim(),
       unidad_medida: document.getElementById('ea-unidad').value,
       stock_minimo: parseFloat(document.getElementById('ea-stockmin').value) || 0,
+      familia_id: famId, familia_nombre: famId ? familiaNombre(famId) : 'SIN FAMILIA',
       cuenta_codigo: cuentaCod, cuenta_nombre: cuentaNombre(cuentaCod)
     });
     showToast('Artículo actualizado');
@@ -1590,7 +1692,7 @@ document.getElementById('anular-form').addEventListener('submit', async e => {
 // ============================================================
 //  REPORTES
 // ============================================================
-const MONEDA = new Set(['Precio','Costo prom.','Saldo valorizado','Costo total','Valor entrada','Valor salida','Saldo valor','Precio unit.','Costo unit.','Neto','IVA','Total','Debe','Haber']);
+const MONEDA = new Set(['Precio','Costo prom.','Saldo valorizado','Valorizado','Costo total','Valor entrada','Valor salida','Saldo valor','Precio unit.','Costo unit.','Neto','IVA','Total','Debe','Haber']);
 const NUMERO = new Set(['Stock','Stock mín.','Cantidad','Entrada','Salida','Saldo','Diferencia','Cant.']);
 let reportData = [], reportType = '';
 
@@ -1623,6 +1725,22 @@ window.reporteInventario = function () {
     'Estado': Number(a.stock) === 0 ? 'Sin Stock' : Number(a.stock) <= Number(a.stock_minimo) ? 'Stock Bajo' : 'Disponible'
   })));
 };
+window.reporteFamilia = function () {
+  const agrupado = {};
+  articulos.forEach(a => {
+    const k = a.familia_nombre || 'SIN FAMILIA';
+    if (!agrupado[k]) agrupado[k] = { 'Familia': k, 'Artículos': 0, 'Stock total': 0, 'Valorizado': 0 };
+    agrupado[k]['Artículos'] += 1;
+    agrupado[k]['Stock total'] += Number(a.stock) || 0;
+    agrupado[k]['Valorizado'] += (Number(a.stock) || 0) * (Number(a.costo_promedio) || 0);
+  });
+  const data = Object.values(agrupado).sort((a, b) => a['Familia'].localeCompare(b['Familia']));
+  const totalVal = data.reduce((s, r) => s + r['Valorizado'], 0);
+  data.push({ 'Familia': 'TOTAL', 'Artículos': articulos.length, 'Stock total': '', 'Valorizado': totalVal });
+  reportType = 'inventario_familia';
+  displayReport('Inventario por familia', data);
+};
+
 window.reporteCritico = function () {
   reportType = 'critico';
   const bajos = articulos.filter(a => Number(a.stock) <= Number(a.stock_minimo));

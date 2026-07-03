@@ -1255,3 +1255,16 @@ body {
   font-size: 0.9rem;
 }
 .detalle-totales strong { margin-left: 0.35rem; }
+
+/* ===== Agrupación por familia en inventario ===== */
+.row-familia td {
+  background: var(--bg, #f1f5f9);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.row-familia .fam-subtotal {
+  float: right;
+  font-weight: 500;
+}
