@@ -490,7 +490,8 @@ function autocomplete(inputId, listId, hiddenId, buscar, onSelect, onEmpty) {
 
 function buscarArticulos(v) {
   return articulos.filter(a =>
-    String(a.codigo).toUpperCase().includes(v) || String(a.nombre).toUpperCase().includes(v)
+    a.activo !== false &&
+    (String(a.codigo).toUpperCase().includes(v) || String(a.nombre).toUpperCase().includes(v))
   ).map(a => ({
     data: a,
     html: () => `<div class="autocomplete-item"><span class="product-code">${a.codigo}</span><span class="product-name">- ${a.nombre}</span><span class="product-stock">Stock: ${num(a.stock)} ${a.unidad_medida} · Costo prom: ${money(a.costo_promedio)}</span></div>`
@@ -923,8 +924,8 @@ function updateInventoryTable() {
     let estado = 'Disponible', bc = 'badge-success';
     if (st === 0) { estado = 'Sin Stock'; bc = 'badge-danger'; }
     else if (st <= mn) { estado = 'Stock Bajo'; bc = 'badge-warning'; }
-    return '<tr>' +
-      '<td>' + a.codigo + '</td><td>' + a.nombre + '</td><td>' + (a.familia_nombre || 'SIN FAMILIA') + '</td><td>' + (a.cuenta_nombre || '-') + '</td>' +
+    return '<tr class="' + (a.activo === false ? 'row-anulada' : '') + '">' +
+      '<td>' + a.codigo + '</td><td>' + a.nombre + (a.activo === false ? ' (DE BAJA)' : '') + '</td><td>' + (a.familia_nombre || 'SIN FAMILIA') + '</td><td>' + (a.cuenta_nombre || '-') + '</td>' +
       '<td>' + num(st) + '</td><td>' + a.unidad_medida + '</td><td>' + num(mn) + '</td>' +
       '<td>' + money(cp) + '</td><td>' + money(st * cp) + '</td>' +
       '<td><span class="badge ' + bc + '">' + estado + '</span></td>' +
@@ -1031,12 +1032,15 @@ function updateArticulosTable() {
   const tb = document.getElementById('articulos-table'); if (!tb) return;
   document.getElementById('art-count').textContent = articulos.length + ' artículo' + (articulos.length !== 1 ? 's' : '');
   if (!articulos.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-state">No hay artículos</td></tr>'; return; }
-  tb.innerHTML = articulos.map(a => '<tr>' +
-    '<td>' + a.codigo + '</td><td>' + a.nombre + '</td><td>' + (a.familia_nombre || 'SIN FAMILIA') + '</td><td>' + a.unidad_medida + '</td><td>' + num(a.stock_minimo) + '</td>' +
+  tb.innerHTML = articulos.map(a => '<tr class="' + (a.activo === false ? 'row-anulada' : '') + '">' +
+    '<td>' + a.codigo + '</td><td>' + a.nombre + (a.activo === false ? ' (DE BAJA)' : '') + '</td><td>' + (a.familia_nombre || 'SIN FAMILIA') + '</td><td>' + a.unidad_medida + '</td><td>' + num(a.stock_minimo) + '</td>' +
     '<td>' + (a.cuenta_nombre || '-') + '</td>' +
-    '<td class="actions"><button class="btn-icon" data-edit-art="' + a.id + '">✏️</button><button class="btn-icon" data-del-art="' + a.id + '">🗑️</button></td></tr>').join('');
+    '<td class="actions"><button class="btn-icon" data-edit-art="' + a.id + '">✏️</button>' +
+    '<button class="btn-icon" data-baja-art="' + a.id + '" title="' + (a.activo === false ? 'Reactivar' : 'Dar de baja') + '">' + (a.activo === false ? '✅' : '🚫') + '</button>' +
+    '<button class="btn-icon" data-del-art="' + a.id + '">🗑️</button></td></tr>').join('');
   tb.querySelectorAll('[data-edit-art]').forEach(b => b.addEventListener('click', () => editArticulo(b.dataset.editArt)));
   tb.querySelectorAll('[data-del-art]').forEach(b => b.addEventListener('click', () => delArticulo(b.dataset.delArt)));
+  tb.querySelectorAll('[data-baja-art]').forEach(b => b.addEventListener('click', () => toggleBajaArticulo(b.dataset.bajaArt)));
 }
 
 document.getElementById('articulo-form').addEventListener('submit', async e => {
@@ -1089,10 +1093,38 @@ document.getElementById('edit-articulo-form').addEventListener('submit', async e
     document.getElementById('modal-articulo').classList.remove('active');
   } catch (err) { console.error(err); showToast('Error al actualizar', 'error'); }
 });
+// Consulta Firestore directamente: no depende de lo cargado en memoria
+async function articuloTieneMovimientos(id) {
+  const snap = await getDocs(query(collection(db, 'movimientos'), where('articulo_id', '==', id)));
+  return !snap.empty;
+}
+
 async function delArticulo(id) {
-  if (!confirm('¿Eliminar este artículo? (No se recomienda si tiene movimientos)')) return;
-  try { await deleteDoc(doc(db, 'articulos', id)); showToast('Artículo eliminado'); }
-  catch (e) { console.error(e); showToast('Error al eliminar', 'error'); }
+  const a = articulos.find(x => x.id === id); if (!a) return;
+  try {
+    if (await articuloTieneMovimientos(id)) {
+      if (confirm('El artículo ' + a.codigo + ' tiene movimientos en el kardex y NO puede eliminarse.\n\n¿Desea darlo de baja? (Deja de aparecer en Recepción y Salidas, pero conserva su historial)')) {
+        await updateDoc(doc(db, 'articulos', id), { activo: false, fecha_baja: Timestamp.now() });
+        showToast('Artículo ' + a.codigo + ' dado de baja');
+      }
+      return;
+    }
+    if (!confirm('¿Eliminar este artículo? No tiene movimientos registrados.')) return;
+    await deleteDoc(doc(db, 'articulos', id));
+    showToast('Artículo eliminado');
+  } catch (e) { console.error(e); showToast('Error al eliminar', 'error'); }
+}
+
+async function toggleBajaArticulo(id) {
+  const a = articulos.find(x => x.id === id); if (!a) return;
+  const dar = a.activo !== false;
+  if (dar && Number(a.stock) > 0 && !confirm('El artículo tiene stock (' + num(a.stock) + ' ' + a.unidad_medida + '). ¿Dar de baja igualmente?')) return;
+  if (!dar && !confirm('¿Reactivar el artículo ' + a.codigo + '?')) return;
+  if (dar && !confirm('¿Dar de baja el artículo ' + a.codigo + '? Dejará de aparecer en Recepción y Salidas.')) return;
+  try {
+    await updateDoc(doc(db, 'articulos', id), dar ? { activo: false, fecha_baja: Timestamp.now() } : { activo: true, fecha_baja: null });
+    showToast(dar ? 'Artículo dado de baja' : 'Artículo reactivado');
+  } catch (e) { console.error(e); showToast('Error al cambiar estado', 'error'); }
 }
 
 // ============================================================
