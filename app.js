@@ -201,6 +201,7 @@ function limpiarVista(viewId) {
     const r = document.getElementById('report-result'); if (r) r.style.display = 'none';
   }
   if (viewId === 'facturas') initFacFiltros();
+  if (viewId === 'historial') initHistFiltros();
 }
 
 let vistaActual = 'dashboard';
@@ -569,8 +570,6 @@ function renderRecItems() {
   }
   const neto = recItems.reduce((s, it) => s + it.total, 0);
   document.getElementById('rec-neto').textContent = money(neto);
-  const ivaEl = document.getElementById('rec-iva');
-  if (document.activeElement !== ivaEl) ivaEl.value = Math.round(neto * CONFIG.iva);
   actualizarTotalRec();
 }
 function actualizarTotalRec() {
@@ -1653,32 +1652,121 @@ async function delSeccion(id) {
 }
 
 // ============================================================
-//  HISTORIAL / ACTAS (reimprimir + anular)
+//  HISTORIAL / ACTAS (entradas y salidas por fecha, detalle, reimprimir, anular)
 // ============================================================
+function histRango() {
+  const fromEl = document.getElementById('hist-from');
+  if (!fromEl) return null;
+  const from = fromEl.value ? new Date(fromEl.value + 'T00:00:00') : null;
+  const toV = document.getElementById('hist-to').value;
+  const to = toV ? new Date(toV + 'T23:59:59') : null;
+  const estado = document.getElementById('hist-estado').value;
+  return { from, to, estado };
+}
+function filtrarHistRecepciones() {
+  const r = histRango(); if (!r) return facturas;
+  return facturas.filter(f => {
+    if (r.estado === 'vigentes' && f.anulada) return false;
+    if (r.estado === 'anuladas' && !f.anulada) return false;
+    const fd = toDate(f.fecha_recepcion);
+    if (r.from && fd < r.from) return false;
+    if (r.to && fd > r.to) return false;
+    return true;
+  });
+}
+function filtrarHistSalidas() {
+  const r = histRango(); if (!r) return salidas;
+  return salidas.filter(s => {
+    if (r.estado === 'vigentes' && s.anulada) return false;
+    if (r.estado === 'anuladas' && !s.anulada) return false;
+    const fd = toDate(s.fecha_salida);
+    if (r.from && fd < r.from) return false;
+    if (r.to && fd > r.to) return false;
+    return true;
+  });
+}
+function initHistFiltros() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const hace30 = new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0];
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v; };
+  set('hist-from', hace30); set('hist-to', hoy); set('hist-estado', 'vigentes');
+  updateHistRecepciones(); updateHistSalidas();
+}
+['hist-from', 'hist-to', 'hist-estado'].forEach(id => {
+  const e = document.getElementById(id);
+  if (e) e.addEventListener('input', () => { updateHistRecepciones(); updateHistSalidas(); });
+});
+document.getElementById('hist-limpiar').addEventListener('click', initHistFiltros);
+
 function updateHistRecepciones() {
   const tb = document.getElementById('hist-recepciones'); if (!tb) return;
-  if (!facturas.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-state">No hay recepciones</td></tr>'; return; }
-  tb.innerHTML = facturas.map(f => '<tr class="' + (f.anulada ? 'row-anulada' : '') + '">' +
+  const data = filtrarHistRecepciones();
+  if (!data.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-state">No hay recepciones con esos filtros</td></tr>'; return; }
+  tb.innerHTML = data.map(f => '<tr class="' + (f.anulada ? 'row-anulada' : '') + '">' +
     '<td>' + f.n_acta + '</td><td>' + fdate(f.fecha_recepcion) + '</td><td>' + f.razon_social + '</td><td>' + f.n_factura + '</td><td>' + money(f.total) + '</td>' +
     '<td>' + (f.anulada ? '<span class="badge badge-danger">Anulada</span>' : '<span class="badge badge-success">Vigente</span>') + '</td>' +
-    '<td class="actions"><button class="btn btn-sm btn-secondary" data-rec-pdf="' + f.id + '">Recepción</button>' +
+    '<td class="actions"><button class="btn btn-sm btn-secondary" data-hist-rec-det="' + f.id + '">Ver detalle</button>' +
+    '<button class="btn btn-sm btn-secondary" data-rec-pdf="' + f.id + '">Recepción</button>' +
     '<button class="btn btn-sm btn-secondary" data-ing-pdf="' + f.id + '">Ingreso</button>' +
     (f.anulada ? '' : '<button class="btn btn-sm btn-danger" data-anular-rec="' + f.id + '">Anular</button>') + '</td></tr>').join('');
+  tb.querySelectorAll('[data-hist-rec-det]').forEach(b => b.addEventListener('click', () => verDetalleFactura(b.dataset.histRecDet)));
   tb.querySelectorAll('[data-rec-pdf]').forEach(b => b.addEventListener('click', () => { const f = facturas.find(x => x.id === b.dataset.recPdf); if (f) actaRecepcion(f); }));
   tb.querySelectorAll('[data-ing-pdf]').forEach(b => b.addEventListener('click', () => { const f = facturas.find(x => x.id === b.dataset.ingPdf); if (f) actaIngresoPanol(f); }));
   tb.querySelectorAll('[data-anular-rec]').forEach(b => b.addEventListener('click', () => abrirAnular('recepcion', b.dataset.anularRec)));
 }
 function updateHistSalidas() {
   const tb = document.getElementById('hist-salidas'); if (!tb) return;
-  if (!salidas.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-state">No hay salidas</td></tr>'; return; }
-  tb.innerHTML = salidas.map(s => '<tr class="' + (s.anulada ? 'row-anulada' : '') + '">' +
+  const data = filtrarHistSalidas();
+  if (!data.length) { tb.innerHTML = '<tr><td colspan="7" class="empty-state">No hay salidas con esos filtros</td></tr>'; return; }
+  tb.innerHTML = data.map(s => '<tr class="' + (s.anulada ? 'row-anulada' : '') + '">' +
     '<td>' + s.n_acta + '</td><td>' + fdate(s.fecha_salida) + '</td><td>' + s.seccion + '</td><td>' + (s.solicitante || '-') + '</td><td>' + money(s.costo_total) + '</td>' +
     '<td>' + (s.anulada ? '<span class="badge badge-danger">Anulada</span>' : '<span class="badge badge-success">Vigente</span>') + '</td>' +
-    '<td class="actions"><button class="btn btn-sm btn-secondary" data-sal-pdf="' + s.id + '">Acta PDF</button>' +
+    '<td class="actions"><button class="btn btn-sm btn-secondary" data-hist-sal-det="' + s.id + '">Ver detalle</button>' +
+    '<button class="btn btn-sm btn-secondary" data-sal-pdf="' + s.id + '">Acta PDF</button>' +
     (s.anulada ? '' : '<button class="btn btn-sm btn-danger" data-anular-sal="' + s.id + '">Anular</button>') + '</td></tr>').join('');
+  tb.querySelectorAll('[data-hist-sal-det]').forEach(b => b.addEventListener('click', () => verDetalleSalida(b.dataset.histSalDet)));
   tb.querySelectorAll('[data-sal-pdf]').forEach(b => b.addEventListener('click', () => { const s = salidas.find(x => x.id === b.dataset.salPdf); if (s) actaSalidaPanol(s); }));
   tb.querySelectorAll('[data-anular-sal]').forEach(b => b.addEventListener('click', () => abrirAnular('salida', b.dataset.anularSal)));
 }
+
+let salidaDetalle = null;
+function verDetalleSalida(id) {
+  const s = salidas.find(x => x.id === id); if (!s) return;
+  salidaDetalle = s;
+  document.getElementById('ms-titulo').textContent = 'Salida N° ' + (s.n_acta || '-') + (s.anulada ? ' (ANULADA)' : '');
+  const dato = (l, v) => '<div><span class="dg-label">' + l + '</span>' + (v || '-') + '</div>';
+  document.getElementById('ms-datos').innerHTML =
+    dato('N° Acta Salida', s.n_acta) +
+    dato('Sección', s.seccion) +
+    dato('Solicitante', s.solicitante) +
+    dato('Fecha salida', fdate(s.fecha_salida)) +
+    (s.anulada ? dato('Motivo anulación', s.motivo_anulacion) : '');
+  document.getElementById('ms-items').innerHTML = (s.items || []).map((it, i) =>
+    '<tr><td>' + (i + 1) + '</td><td>' + it.codigo + '</td><td>' + it.nombre + '</td><td>' + num(it.cantidad) +
+    '</td><td>' + it.unidad + '</td><td>' + money(it.costo_unit) + '</td><td>' + money(it.costo_total) + '</td></tr>').join('');
+  document.getElementById('ms-totales').innerHTML =
+    '<span>Costo Total:<strong>' + money(s.costo_total) + '</strong></span>';
+  document.getElementById('modal-salida').classList.add('active');
+}
+document.getElementById('ms-pdf').addEventListener('click', () => { if (salidaDetalle) actaSalidaPanol(salidaDetalle); });
+
+document.getElementById('hist-csv-rec').addEventListener('click', () => {
+  const data = filtrarHistRecepciones().map(f => ({
+    'N Acta': f.n_acta || '', 'N Factura': f.n_factura || '', 'Fecha Recepcion': fdate(f.fecha_recepcion),
+    'Proveedor': f.razon_social || '', 'RUT': f.rut || '',
+    'Neto': Number(f.neto) || 0, 'IVA': Number(f.iva) || 0, 'Total': Number(f.total) || 0,
+    'Estado': f.anulada ? 'ANULADA' : 'VIGENTE'
+  }));
+  descargarCSV('entradas', data);
+});
+document.getElementById('hist-csv-sal').addEventListener('click', () => {
+  const data = filtrarHistSalidas().map(s => ({
+    'N Acta': s.n_acta || '', 'Fecha Salida': fdate(s.fecha_salida),
+    'Seccion': s.seccion || '', 'Solicitante': s.solicitante || '',
+    'Costo total': Number(s.costo_total) || 0, 'Estado': s.anulada ? 'ANULADA' : 'VIGENTE'
+  }));
+  descargarCSV('salidas', data);
+});
 
 function abrirAnular(tipo, id) {
   document.getElementById('an-tipo').value = tipo;
@@ -1955,6 +2043,7 @@ async function init() {
   renderModulosChecks('usr-modulos', []);
   renderPermModulos();
   initFacFiltros();
+  initHistFiltros();
   const sesion = leerSesion();
   if (sesion && sesion.username && sesion.rol) mostrarApp(sesion);
   else mostrarLogin();

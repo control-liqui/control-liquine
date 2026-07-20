@@ -471,7 +471,7 @@ body {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   font-size: 0.9375rem;
   font-weight: 500;
@@ -479,19 +479,31 @@ body {
   transition: all var(--transition);
 }
 
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
 .btn-primary {
   background: var(--primary);
   color: white;
+  border-color: var(--primary);
 }
 
 .btn-primary:hover {
   background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .btn-secondary {
   background: var(--background);
   color: var(--text-primary);
-  border: 1px solid var(--border);
+  border-color: var(--secondary);
 }
 
 .btn-secondary:hover {
@@ -501,10 +513,12 @@ body {
 .btn-danger {
   background: var(--danger);
   color: white;
+  border-color: var(--danger);
 }
 
 .btn-danger:hover {
   background: #dc2626;
+  border-color: #dc2626;
 }
 
 .btn-sm {
@@ -515,7 +529,7 @@ body {
 .btn-icon {
   padding: 0.5rem;
   background: transparent;
-  border: none;
+  border: 1px solid var(--border);
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: var(--radius-sm);
@@ -525,6 +539,12 @@ body {
 .btn-icon:hover {
   background: var(--background);
   color: var(--text-primary);
+  border-color: var(--secondary);
+  transform: scale(1.12);
+}
+
+.btn-icon:active {
+  transform: scale(0.95);
 }
 
 .btn-icon svg {
@@ -714,6 +734,7 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+  align-items: start;
 }
 
 .report-card {
@@ -882,6 +903,11 @@ body {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--border);
+}
+
+/* Modales sin <form> (detalle de factura/salida): modal-actions no hereda el padding del form */
+.modal > .modal-actions {
+  padding: 1.5rem;
 }
 
 /* ===== Toast ===== */
@@ -1233,7 +1259,8 @@ body {
 }
 
 /* ===== Detalle de factura ===== */
-.modal-lg { max-width: 760px; width: 95%; }
+.modal-lg { max-width: 960px; width: 95%; }
+.modal-body { padding: 1.5rem; }
 .detalle-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

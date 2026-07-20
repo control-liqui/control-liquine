@@ -254,8 +254,8 @@
           <div class="totales-bar">
             <div class="totales-row"><span>Total Neto</span><strong id="rec-neto">$0</strong></div>
             <div class="totales-row">
-              <span>IVA (19%)</span>
-              <input type="number" id="rec-iva" min="0" step="0.01" class="iva-input" placeholder="0">
+              <span>IVA</span>
+              <input type="number" id="rec-iva" min="0" step="0.01" class="iva-input" placeholder="Ingrese el IVA">
             </div>
             <div class="totales-row total-final"><span>Total Factura</span><strong id="rec-total">$0</strong></div>
           </div>
@@ -715,27 +715,55 @@
       <section class="view" id="historial-view">
         <div class="view-header">
           <h1>Historial / Actas</h1>
-          <p class="view-subtitle">Reimprimir y anular actas</p>
+          <p class="view-subtitle">Entradas y salidas por fecha: detalle, reimpresión y anulación</p>
+        </div>
+        <div class="card">
+          <div class="card-content">
+            <div class="filter-group">
+              <div class="form-group"><label for="hist-from">Fecha desde</label><input type="date" id="hist-from"></div>
+              <div class="form-group"><label for="hist-to">Fecha hasta</label><input type="date" id="hist-to"></div>
+              <div class="form-group"><label for="hist-estado">Estado</label>
+                <select id="hist-estado">
+                  <option value="vigentes">Vigentes</option>
+                  <option value="anuladas">Anuladas</option>
+                  <option value="todas">Todas</option>
+                </select>
+              </div>
+              <div class="form-group"><label>&nbsp;</label><button type="button" class="btn btn-secondary" id="hist-limpiar">Limpiar filtros</button></div>
+            </div>
+          </div>
         </div>
         <div class="tabs">
-          <button class="tab active" data-htab="recepciones">Recepciones</button>
+          <button class="tab active" data-htab="recepciones">Entradas</button>
           <button class="tab" data-htab="salidas">Salidas</button>
         </div>
         <div class="tab-content active" id="htab-recepciones">
-          <div class="card"><div class="card-content"><div class="table-container">
-            <table class="data-table">
-              <thead><tr><th>N° Acta</th><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
-              <tbody id="hist-recepciones"></tbody>
-            </table>
-          </div></div></div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Recepciones (entradas)</h3>
+              <button type="button" class="btn btn-secondary" id="hist-csv-rec">Exportar CSV</button>
+            </div>
+            <div class="card-content"><div class="table-container">
+              <table class="data-table">
+                <thead><tr><th>N° Acta</th><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="hist-recepciones"></tbody>
+              </table>
+            </div></div>
+          </div>
         </div>
         <div class="tab-content" id="htab-salidas">
-          <div class="card"><div class="card-content"><div class="table-container">
-            <table class="data-table">
-              <thead><tr><th>N° Acta</th><th>Fecha</th><th>Sección</th><th>Solicitante</th><th>Costo</th><th>Estado</th><th>Acciones</th></tr></thead>
-              <tbody id="hist-salidas"></tbody>
-            </table>
-          </div></div></div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Salidas</h3>
+              <button type="button" class="btn btn-secondary" id="hist-csv-sal">Exportar CSV</button>
+            </div>
+            <div class="card-content"><div class="table-container">
+              <table class="data-table">
+                <thead><tr><th>N° Acta</th><th>Fecha</th><th>Sección</th><th>Solicitante</th><th>Costo</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="hist-salidas"></tbody>
+              </table>
+            </div></div>
+          </div>
         </div>
       </section>
 
@@ -759,15 +787,17 @@
             <button class="btn btn-primary" onclick="reporteFamilia()">Generar</button>
           </div>
           <div class="card report-card">
-            <div class="report-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg></div>
-            <h3>Mayor por artículo</h3>
-            <p>Entradas, salidas y saldo valorizado</p>
-            <div class="form-group" style="text-align:left;margin-bottom:1rem;">
-              <label for="rep-art">Artículo</label>
-              <select id="rep-art"><option value="all">Todos</option></select>
-            </div>
-            <div class="date-range"><input type="date" id="rep-mayor-from"><span>a</span><input type="date" id="rep-mayor-to"></div>
-            <button class="btn btn-primary" onclick="reporteMayor()">Generar</button>
+            <div class="report-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line></svg></div>
+            <h3>Stock crítico</h3>
+            <p>Artículos bajo el mínimo</p>
+            <button class="btn btn-primary" onclick="reporteCritico()">Generar</button>
+          </div>
+          <div class="card report-card">
+            <div class="report-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+            <h3>Movimientos por fecha</h3>
+            <p>Entradas y salidas en un rango</p>
+            <div class="date-range"><input type="date" id="rep-mov-from"><span>a</span><input type="date" id="rep-mov-to"></div>
+            <button class="btn btn-primary" onclick="reporteMovimientos()">Generar</button>
           </div>
           <div class="card report-card">
             <div class="report-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></div>
@@ -784,17 +814,15 @@
             <button class="btn btn-primary" onclick="reporteCostosArticulo()">Generar</button>
           </div>
           <div class="card report-card">
-            <div class="report-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line></svg></div>
-            <h3>Stock crítico</h3>
-            <p>Artículos bajo el mínimo</p>
-            <button class="btn btn-primary" onclick="reporteCritico()">Generar</button>
-          </div>
-          <div class="card report-card">
-            <div class="report-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
-            <h3>Movimientos por fecha</h3>
-            <p>Entradas y salidas en un rango</p>
-            <div class="date-range"><input type="date" id="rep-mov-from"><span>a</span><input type="date" id="rep-mov-to"></div>
-            <button class="btn btn-primary" onclick="reporteMovimientos()">Generar</button>
+            <div class="report-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg></div>
+            <h3>Mayor por artículo</h3>
+            <p>Entradas, salidas y saldo valorizado</p>
+            <div class="form-group" style="text-align:left;margin-bottom:1rem;">
+              <label for="rep-art">Artículo</label>
+              <select id="rep-art"><option value="all">Todos</option></select>
+            </div>
+            <div class="date-range"><input type="date" id="rep-mayor-from"><span>a</span><input type="date" id="rep-mayor-to"></div>
+            <button class="btn btn-primary" onclick="reporteMayor()">Generar</button>
           </div>
         </div>
 
@@ -910,6 +938,26 @@
         <button type="button" class="btn btn-secondary" data-close="modal-factura">Cerrar</button>
         <button type="button" class="btn btn-secondary" id="mf-pdf-rec">Acta Recepción PDF</button>
         <button type="button" class="btn btn-primary" id="mf-pdf-ing">Acta Ingreso PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-salida">
+    <div class="modal modal-lg">
+      <div class="modal-header"><h3 id="ms-titulo">Detalle de Salida</h3><button class="modal-close" data-close="modal-salida">&times;</button></div>
+      <div class="modal-body">
+        <div class="detalle-grid" id="ms-datos"></div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead><tr><th>#</th><th>Código</th><th>Artículo</th><th>Cant.</th><th>Unidad</th><th>Costo unit.</th><th>Total</th></tr></thead>
+            <tbody id="ms-items"></tbody>
+          </table>
+        </div>
+        <div class="detalle-totales" id="ms-totales"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" data-close="modal-salida">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="ms-pdf">Acta de Salida PDF</button>
       </div>
     </div>
   </div>
