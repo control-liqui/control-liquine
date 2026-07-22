@@ -222,6 +222,9 @@ document.querySelectorAll('.nav-item').forEach(item => {
 document.getElementById('menu-toggle').addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('open');
 });
+document.getElementById('sidebar-close').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.remove('open');
+});
 
 // ============================================================
 //  Sesión / Login

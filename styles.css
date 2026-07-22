@@ -75,6 +75,22 @@ body {
 .sidebar-header {
   padding: 1.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sidebar-close {
+  display: none;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem;
+  flex-shrink: 0;
 }
 
 .logo {
@@ -185,7 +201,7 @@ body {
   padding: 0 1rem;
   align-items: center;
   gap: 1rem;
-  z-index: 150;
+  z-index: 99;
 }
 
 .menu-toggle {
@@ -956,7 +972,11 @@ body {
   .sidebar.open {
     transform: translateX(0);
   }
-  
+
+  .sidebar-close {
+    display: block;
+  }
+
   .mobile-header {
     display: flex;
   }
