@@ -521,6 +521,7 @@ autocomplete('rec-prov-rut', 'rec-prov-list', 'rec-prov-id', buscarProveedores,
     hidden.value = p.id;
     document.getElementById('rec-razon').value = p.razon_social || '';
     document.getElementById('rec-prov-info').innerHTML = '';
+    checkFacturaDuplicada();
   },
   (texto) => {
     document.getElementById('rec-razon').value = '';
@@ -531,8 +532,43 @@ autocomplete('rec-prov-rut', 'rec-prov-list', 'rec-prov-id', buscarProveedores,
       const link = document.getElementById('rec-prov-nuevo');
       if (link) link.addEventListener('click', ev => { ev.preventDefault(); abrirQuickProv(texto); });
     } else info.innerHTML = '';
+    checkFacturaDuplicada();
   }
 );
+
+// Valida en tiempo real que el N° de factura no esté ya ingresado para el mismo proveedor
+let facturaDupActiva = false;
+function checkFacturaDuplicada() {
+  const input = document.getElementById('rec-nfactura');
+  const hint = document.getElementById('rec-nfactura-info');
+  const saveBtn = document.getElementById('rec-save');
+  const nFactura = input.value.trim().toUpperCase();
+  const provId = document.getElementById('rec-prov-id').value;
+
+  if (!nFactura || !provId) {
+    input.classList.remove('input-error');
+    hint.textContent = ''; hint.classList.remove('hint-error');
+    saveBtn.disabled = false;
+    facturaDupActiva = false;
+    return;
+  }
+
+  const dup = facturas.find(f => !f.anulada && f.proveedor_id === provId && String(f.n_factura || '').toUpperCase() === nFactura);
+  if (dup) {
+    input.classList.add('input-error');
+    hint.textContent = `El número de factura ya existe (Acta N° ${dup.n_acta}).`;
+    hint.classList.add('hint-error');
+    saveBtn.disabled = true;
+    if (!facturaDupActiva) showToast('El número de factura ya existe.', 'error');
+    facturaDupActiva = true;
+  } else {
+    input.classList.remove('input-error');
+    hint.textContent = ''; hint.classList.remove('hint-error');
+    saveBtn.disabled = false;
+    facturaDupActiva = false;
+  }
+}
+document.getElementById('rec-nfactura').addEventListener('input', checkFacturaDuplicada);
 
 autocomplete('rec-art', 'rec-art-list', 'rec-art-id', buscarArticulos,
   (a, input, hidden) => {
@@ -590,6 +626,7 @@ function limpiarRecepcion() {
   document.getElementById('rec-prov-info').innerHTML = '';
   document.getElementById('rec-art-info').innerHTML = '';
   renderRecItems();
+  checkFacturaDuplicada();
 }
 
 document.getElementById('rec-save').addEventListener('click', guardarRecepcion);
@@ -1203,6 +1240,7 @@ document.getElementById('quick-prov-form').addEventListener('submit', async e =>
     document.getElementById('rec-prov-rut').value = document.getElementById('qp-rut').value.trim() || razon;
     document.getElementById('rec-razon').value = razon;
     document.getElementById('rec-prov-info').innerHTML = '';
+    checkFacturaDuplicada();
     showToast('Proveedor registrado y seleccionado');
     document.getElementById('modal-quick-prov').classList.remove('active');
   } catch (err) { console.error(err); showToast('Error al registrar', 'error'); }

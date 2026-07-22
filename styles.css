@@ -1071,6 +1071,20 @@ body {
   text-decoration: underline;
 }
 
+.field-hint.hint-error {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.form-group input.input-error {
+  border-color: var(--danger);
+}
+
+.form-group input.input-error:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-light);
+}
+
 /* Campo de solo lectura (razon social autocompletada) */
 .form-group input[readonly] {
   background: var(--background);
