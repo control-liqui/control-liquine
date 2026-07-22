@@ -545,7 +545,7 @@ function checkFacturaDuplicada() {
   const nFactura = input.value.trim().toUpperCase();
   const provId = document.getElementById('rec-prov-id').value;
 
-  if (!nFactura || !provId) {
+  if (!nFactura) {
     input.classList.remove('input-error');
     hint.textContent = ''; hint.classList.remove('hint-error');
     saveBtn.disabled = false;
@@ -553,10 +553,14 @@ function checkFacturaDuplicada() {
     return;
   }
 
-  const dup = facturas.find(f => !f.anulada && f.proveedor_id === provId && String(f.n_factura || '').toUpperCase() === nFactura);
+  // Si ya hay proveedor seleccionado, se valida solo contra ese proveedor (misma regla que al guardar).
+  // Si aún no se elige proveedor, se valida contra cualquier factura con ese N° para avisar apenas se escribe.
+  const dup = facturas.find(f => !f.anulada && String(f.n_factura || '').toUpperCase() === nFactura && (!provId || f.proveedor_id === provId));
   if (dup) {
     input.classList.add('input-error');
-    hint.textContent = `El número de factura ya existe (Acta N° ${dup.n_acta}).`;
+    hint.textContent = provId
+      ? `El número de factura ya existe (Acta N° ${dup.n_acta}).`
+      : `El número de factura ya existe (Acta N° ${dup.n_acta}, proveedor: ${dup.razon_social || '-'}).`;
     hint.classList.add('hint-error');
     saveBtn.disabled = true;
     if (!facturaDupActiva) showToast('El número de factura ya existe.', 'error');
