@@ -185,7 +185,7 @@ body {
   padding: 0 1rem;
   align-items: center;
   gap: 1rem;
-  z-index: 99;
+  z-index: 150;
 }
 
 .menu-toggle {
