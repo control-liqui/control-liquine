@@ -101,6 +101,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .nav-item {
