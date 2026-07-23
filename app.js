@@ -1920,7 +1920,13 @@ function movsEnRango(fromId, toId, filtro) {
   let list = movimientos.filter(filtro || (() => true));
   if (from) { const fd = new Date(from + 'T00:00:00'); list = list.filter(m => toDate(m.fecha_doc || m.fecha_creacion) >= fd); }
   if (to) { const td = new Date(to + 'T23:59:59'); list = list.filter(m => toDate(m.fecha_doc || m.fecha_creacion) <= td); }
-  return list.sort((a, b) => toDate(a.fecha_doc || a.fecha_creacion) - toDate(b.fecha_doc || b.fecha_creacion));
+  return list.sort((a, b) => {
+    const fa = toDate(a.fecha_doc || a.fecha_creacion), fb = toDate(b.fecha_doc || b.fecha_creacion);
+    if (fa - fb !== 0) return fa - fb;
+    // Misma fecha de documento (ej. varias líneas de la misma factura): desempata por el orden real de registro,
+    // para que el saldo se lea de forma creciente/decreciente con sentido de arriba hacia abajo.
+    return toDate(a.fecha_creacion) - toDate(b.fecha_creacion);
+  });
 }
 window.reporteMayor = function () {
   reportType = 'mayor';
